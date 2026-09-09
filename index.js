@@ -31,7 +31,6 @@ try {
   // eslint-disable-next-line no-console
   console.warn("Couldn't determine Mocha version");
 }
-module.exports = MochaJUnitReporter;
 
 // A subset of invalid characters as defined in http://www.w3.org/TR/xml/#charsets that can occur in e.g. stacktraces
 // regex lifted from https://github.com/MylesBorins/xml-sanitizer/ (licensed MIT)
@@ -200,80 +199,83 @@ function getJenkinsClassname (test, options) {
  * @param {EventEmitter} runner - the test runner
  * @param {Object} options - mocha options
  */
-function MochaJUnitReporter(runner, options) {
-  if (mocha6plus) {
-    createStatsCollector(runner);
-  }
-  this._options = configureDefaults(options);
-  this._runner = runner;
-  this._generateSuiteTitle = this._options.useFullSuiteTitle ? fullSuiteTitle : defaultSuiteTitle;
-  this._antId = 0;
-  this._Date = (options || {}).Date || Date;
-
-  var testsuites = [];
-  this._testsuites = testsuites;
-
-  function lastSuite() {
-    return testsuites[testsuites.length - 1].testsuite;
-  }
-
-  // get functionality from the Base reporter
-  Base.call(this, runner);
-
-  // remove old results
-  this._runner.on('start', function() {
-    if (fs.existsSync(this._options.mochaFile)) {
-      debug('removing report file', this._options.mochaFile);
-      fs.unlinkSync(this._options.mochaFile);
+class MochaJUnitReporter extends Base {
+  constructor(runner, options) {
+    if (mocha6plus) {
+      createStatsCollector(runner);
     }
-  }.bind(this));
 
-  this._onSuiteBegin = function(suite) {
-    if (!isInvalidSuite(suite)) {
-      testsuites.push(this.getTestsuiteData(suite));
+    // get functionality from the Base reporter
+    super(runner);
+
+    this._options = configureDefaults(options);
+    this._runner = runner;
+    this._generateSuiteTitle = this._options.useFullSuiteTitle ? fullSuiteTitle : defaultSuiteTitle;
+    this._antId = 0;
+    this._Date = (options || {}).Date || Date;
+
+    var testsuites = [];
+    this._testsuites = testsuites;
+
+    function lastSuite() {
+      return testsuites[testsuites.length - 1].testsuite;
     }
-  };
 
-  this._runner.on('suite', function(suite) {
-    // allow tests to mock _onSuiteBegin
-    return this._onSuiteBegin(suite);
-  }.bind(this));
-
-  this._onSuiteEnd = function(suite) {
-    if (!isInvalidSuite(suite)) {
-      var testsuite = lastSuite();
-      if (testsuite) {
-        var start = testsuite[0]._attr.timestamp;
-        testsuite[0]._attr.time = this._Date.now() - start;
+    // remove old results
+    this._runner.on('start', function() {
+      if (fs.existsSync(this._options.mochaFile)) {
+        debug('removing report file', this._options.mochaFile);
+        fs.unlinkSync(this._options.mochaFile);
       }
+    }.bind(this));
+
+    this._onSuiteBegin = function(suite) {
+      if (!isInvalidSuite(suite)) {
+        testsuites.push(this.getTestsuiteData(suite));
+      }
+    };
+
+    this._runner.on('suite', function(suite) {
+      // allow tests to mock _onSuiteBegin
+      return this._onSuiteBegin(suite);
+    }.bind(this));
+
+    this._onSuiteEnd = function(suite) {
+      if (!isInvalidSuite(suite)) {
+        var testsuite = lastSuite();
+        if (testsuite) {
+          var start = testsuite[0]._attr.timestamp;
+          testsuite[0]._attr.time = this._Date.now() - start;
+        }
+      }
+    };
+
+    this._runner.on('suite end', function(suite) {
+      // allow tests to mock _onSuiteEnd
+      return this._onSuiteEnd(suite);
+    }.bind(this));
+
+    this._runner.on('pass', function(test) {
+      lastSuite().push(this.getTestcaseData(test));
+    }.bind(this));
+
+    this._runner.on('fail', function(test, err) {
+      lastSuite().push(this.getTestcaseData(test, err));
+    }.bind(this));
+
+    if (this._options.includePending) {
+      this._runner.on('pending', function(test) {
+        var testcase = this.getTestcaseData(test);
+
+        testcase.testcase.push({ skipped: null });
+        lastSuite().push(testcase);
+      }.bind(this));
     }
-  };
 
-  this._runner.on('suite end', function(suite) {
-    // allow tests to mock _onSuiteEnd
-    return this._onSuiteEnd(suite);
-  }.bind(this));
-
-  this._runner.on('pass', function(test) {
-    lastSuite().push(this.getTestcaseData(test));
-  }.bind(this));
-
-  this._runner.on('fail', function(test, err) {
-    lastSuite().push(this.getTestcaseData(test, err));
-  }.bind(this));
-
-  if (this._options.includePending) {
-    this._runner.on('pending', function(test) {
-      var testcase = this.getTestcaseData(test);
-
-      testcase.testcase.push({ skipped: null });
-      lastSuite().push(testcase);
+    this._runner.on('end', function(){
+      this.flush(testsuites);
     }.bind(this));
   }
-
-  this._runner.on('end', function(){
-    this.flush(testsuites);
-  }.bind(this));
 }
 
 /**
@@ -537,3 +539,5 @@ MochaJUnitReporter.prototype.writeXmlToDisk = function(xml, filePath){
     debug('results written successfully');
   }
 };
+
+module.exports = MochaJUnitReporter;
