@@ -1,6 +1,6 @@
 {
-  "name": "mocha-junit-reporter",
-  "version": "2.2.1",
+  "name": "@laposa/mocha-junit-reporter",
+  "version": "2.3.0",
   "description": "A JUnit reporter for mocha.",
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/michaelleeallen/mocha-junit-reporter"
+    "url": "https://github.com/laposa/mocha-junit-reporter"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [
     "mocha",
